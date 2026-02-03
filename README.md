@@ -1,20 +1,20 @@
-# Herald - Production-Grade Messaging Service
+﻿# Herald - Production-Grade Messaging Service
 
 Multi-tenant messaging service with SMS and Email support, built with Fastify and Bull queue.
 
 ## Features
 
-- ✅ Multi-provider failover (Fast2SMS, BulkSMS, AWS SES, Gmail)
-- ✅ Automatic retry with exponential backoff
-- ✅ Circuit breaker pattern per provider
-- ✅ Dead Letter Queue for failed messages
-- ✅ Async processing with Bull queue
-- ✅ Idempotency support
-- ✅ Rate limiting per product
-- ✅ Prometheus metrics
-- ✅ Comprehensive logging
-- ✅ Health checks
-- ✅ Graceful shutdown
+- âœ… Multi-provider failover (Fast2SMS, BulkSMS, AWS SES, Gmail)
+- âœ… Automatic retry with exponential backoff
+- âœ… Circuit breaker pattern per provider
+- âœ… Dead Letter Queue for failed messages
+- âœ… Async processing with Bull queue
+- âœ… Idempotency support
+- âœ… Rate limiting per product
+- âœ… Prometheus metrics
+- âœ… Comprehensive logging
+- âœ… Health checks
+- âœ… Graceful shutdown
 
 ## Tech Stack
 
@@ -124,16 +124,16 @@ Configure provider pipelines in `src/config/pipelines.js`
 ## Architecture
 
 ```
-┌─────────┐     ┌──────────┐     ┌─────────┐
-│  API    │────▶│   Bull   │────▶│ Worker  │
-│ Server  │     │  Queue   │     │ Process │
-└─────────┘     └──────────┘     └─────────┘
-     │                │                │
-     │                │                │
-     ▼                ▼                ▼
-┌─────────┐     ┌──────────┐     ┌─────────┐
-│PostgreSQL│     │  Redis   │     │Providers│
-└─────────┘     └──────────┘     └─────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  API    â”‚â”€â”€â”€â”€â–¶â”‚   Bull   â”‚â”€â”€â”€â”€â–¶â”‚ Worker  â”‚
+â”‚ Server  â”‚     â”‚  Queue   â”‚     â”‚ Process â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+     â”‚                â”‚                â”‚
+     â”‚                â”‚                â”‚
+     â–¼                â–¼                â–¼
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”     â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚PostgreSQLâ”‚     â”‚  Redis   â”‚     â”‚Providersâ”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜     â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ## License
