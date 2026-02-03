@@ -4,17 +4,17 @@ Multi-tenant messaging service with SMS and Email support, built with Fastify an
 
 ## Features
 
-- âœ… Multi-provider failover (Fast2SMS, BulkSMS, AWS SES, Gmail)
-- âœ… Automatic retry with exponential backoff
-- âœ… Circuit breaker pattern per provider
-- âœ… Dead Letter Queue for failed messages
-- âœ… Async processing with Bull queue
-- âœ… Idempotency support
-- âœ… Rate limiting per product
-- âœ… Prometheus metrics
-- âœ… Comprehensive logging
-- âœ… Health checks
-- âœ… Graceful shutdown
+- Multi-provider failover (Fast2SMS, BulkSMS, AWS SES, Gmail)
+- Automatic retry with exponential backoff
+- Circuit breaker pattern per provider
+- Dead Letter Queue for failed messages
+- Async processing with Bull queue
+- Idempotency support
+- Rate limiting per product
+- Prometheus metrics
+- Comprehensive logging
+- Health checks
+- Graceful shutdown
 
 ## Tech Stack
 
