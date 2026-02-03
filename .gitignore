@@ -1,0 +1,53 @@
+﻿# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# Database
+*.sqlite
+*.sqlite3
+data/
+postgres-data/
+
+# Redis
+redis-data/
+dump.rdb
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup files
+*.backup
+*.bak
+
+# Build outputs
+dist/
+build/
+coverage/
+
+# Prometheus data
+prometheus-data/
+
+# Grafana data
+grafana-data/
