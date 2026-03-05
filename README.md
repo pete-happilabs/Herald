@@ -1,4 +1,4 @@
-﻿# Herald - Production-Grade Messaging Service
+# Herald - Production-Grade Messaging Service
 
 Multi-tenant messaging service with SMS and Email support, built with Fastify and Bull queue.
 
@@ -7,14 +7,13 @@ Multi-tenant messaging service with SMS and Email support, built with Fastify an
 - Multi-provider failover (Fast2SMS, BulkSMS, AWS SES, Gmail)
 - Automatic retry with exponential backoff
 - Circuit breaker pattern per provider
-- Dead Letter Queue for failed messages
+- Dead Letter Queue with auto-retry and archival
 - Async processing with Bull queue
 - Idempotency support
-- Rate limiting per product
+- Rate limiting (daily per product + 100 req/min)
+- DB-driven config with Redis caching
 - Prometheus metrics
-- Comprehensive logging
-- Health checks
-- Graceful shutdown
+- Health checks and graceful shutdown
 
 ## Tech Stack
 
@@ -28,148 +27,181 @@ Multi-tenant messaging service with SMS and Email support, built with Fastify an
 
 ### 1. Clone and Install
 ```bash
-git clone <repository>
-cd herald
+git clone https://github.com/pete-happilabs/Herald.git
+cd Herald
 npm install
 ```
 
 ### 2. Environment Setup
 ```bash
 cp .env.example .env
-# Edit .env with your configuration
+# Edit .env with your credentials
 ```
 
-### 3. Database Setup
-```bash
-# Run migrations
-psql $DATABASE_URL < migrations/001_initial_schema.sql
-```
-
-### 4. Start Services
-
-**Development:**
-```bash
-# Terminal 1: API Server
-npm run dev
-
-# Terminal 2: Worker
-npm run worker
-```
-
-**Production with Docker:**
+### 3. Start with Docker (recommended)
 ```bash
 docker-compose up -d
 ```
 
-**Production with PM2:**
+This starts all services: API, Workers (x2), DLT service, PostgreSQL, Redis, Prometheus, Grafana.
+
+Migrations and seed data run automatically on first start.
+
+### 4. Start without Docker
 ```bash
-pm2 start ecosystem.config.js
+# Run migrations manually
+psql $DATABASE_URL < migrations/001_initial_schema.sql
+psql $DATABASE_URL < migrations/002_dlq_archive_schema.sql
+psql $DATABASE_URL < migrations/003_sms_templates.sql
+psql $DATABASE_URL < migrations/004_config_tables.sql
+psql $DATABASE_URL < migrations/005_seed_config_data.sql
+
+# Terminal 1: API Server
+npm start
+
+# Terminal 2: Worker
+npm run worker
+
+# Terminal 3: DLT Service
+npm run dlt
 ```
 
-## API Endpoints
+## API
+
+**Base URL**: `http://localhost:3000`
+**Auth**: `X-API-Key` header required on all endpoints except `/health` and `/metrics`
 
 ### Send Message
-```bash
+
+```
 POST /api/v1/send
-Headers:
-  X-API-Key: your_api_key
-  Idempotency-Key: unique_request_id (optional)
-Body:
+```
+
+```json
 {
   "productCode": "HAPPIDOST",
   "channel": "SMS",
-  "templateCode": "OTP_LOGIN",
-  "to": "+919876543210",
+  "templateCode": "OTP_VERIFICATION",
+  "to": "9876543210",
   "variables": {
-    "otp": "123456"
+    "otp": "845291"
   }
 }
 ```
 
-### Get Job Status
-```bash
-GET /api/v1/jobs/:jobId
-Headers:
-  X-API-Key: your_api_key
+**Response** (202):
+```json
+{
+  "success": true,
+  "message": "Message queued successfully",
+  "jobId": "job_abc123",
+  "queueName": "message-queue"
+}
 ```
 
-### Health Check
-```bash
-GET /health
-```
+### Other Endpoints
 
-### Metrics
-```bash
-GET /metrics
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check (no auth) |
+| GET | `/metrics` | Prometheus metrics (no auth) |
+| GET | `/api/v1/jobs/:jobId` | Job status |
+| GET | `/api/v1/products` | List products |
+| GET | `/api/v1/products/:code` | Product details + templates |
+| GET | `/api/v1/status` | Pipeline status |
+| GET | `/api/v1/dlq/stats` | DLQ statistics |
+
+### Error Responses
+
+| Code | Format |
+|------|--------|
+| 400 | `{ success: false, error: "Validation failed", details: {} }` |
+| 401 | `{ success: false, error: "Invalid API key" }` |
+| 404 | `{ success: false, error: "Product not found", details: {} }` |
+| 429 | `{ success: false, error: "Rate limit exceeded", retryAfter: 60, limit: {} }` |
+| 500 | `{ success: false, error: "Internal server error" }` |
+
+## Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| API | 3000 | REST API, request validation, job queuing |
+| Worker (x2) | - | Bull queue consumer, sends via providers |
+| DLT | 3002 | Dead Letter Queue management, auto-retry, archival |
+| PostgreSQL | 5432 | Message log, archived messages, config tables |
+| Redis | 6379 | Queue, caching, rate limits, DLQ |
+| Prometheus | 9090 | Metrics collection |
+| Grafana | 3001 | Dashboards (admin/admin) |
 
 ## Configuration
 
-### Products
-Configure products in `src/config/products.js`
+Config is DB-driven with file-based fallback. On startup, `ConfigService` loads from PostgreSQL and caches in Redis (5 min TTL).
 
-### Templates
-Configure message templates in `src/config/templates.js`
+**DB tables** (source of truth):
+- `products` - registered products with daily limits
+- `message_templates` - SMS/email templates with variables
+- `provider_configs` - provider priority chains per channel
 
-### Providers
-Configure provider pipelines in `src/config/pipelines.js`
+**File fallback** (used if DB is empty):
+- `src/config/products.js`
+- `src/config/templates.js`
+- `src/config/pipelines.js`
 
-## Monitoring
+## Providers
 
-- **Prometheus**: http://localhost:9090
-- **Grafana**: http://localhost:3001 (admin/admin)
-- **Health**: http://localhost:3000/health
-- **Metrics**: http://localhost:3000/metrics
+### SMS
+| Provider | Priority | Status |
+|----------|----------|--------|
+| Fast2SMS | 1 | DLT-compliant, production |
+| BulkSMS | 2 | Fallback |
+
+### Email
+| Provider | Priority | Status |
+|----------|----------|--------|
+| AWS SES | 1 | Primary |
+| Gmail SMTP | 2 | Fallback |
+
+## Templates
+
+### SMS
+| Code | Variables |
+|------|-----------|
+| `OTP_LOGIN` | `otp` |
+| `OTP_VERIFICATION` | `otp` |
+| `ACCOUNT_ALERT` | `accountId`, `message` |
+
+### Email
+| Code | Subject | Variables |
+|------|---------|-----------|
+| `OTP_PHONE_VERIFY` | Your Dost OTP - Valid for 10 Minutes | `otp`, `phoneLast4`, `generatedAt` |
+| `OTP_EMAIL_VERIFY` | Your Dost OTP - Valid for 10 Minutes | `otp`, `emailLast4`, `generatedAt` |
+| `WELCOME_EMAIL` | Welcome to HappiDost! | `name`, `accountId` |
+| `PASSWORD_RESET` | Reset Your HappiDost Password | `resetLink` |
 
 ## Architecture
 
-## System Overview
-
-\`\`\`
-                    +------------------+
-                    |     Clients      |
-                    |   (REST API)     |
-                    +--------+---------+
-                             |
-                             v
-                    +------------------+       +----------------+
-                    |   API Server     |------>|     Redis      |
-                    |   (Express.js)   |       |    (Queue)     |
-                    +------------------+       +-------+--------+
-                                                       |
-                    +----------------------------------+----------------------------------+
-                    |                                  |                                  |
-                    v                                  v                                  v
-            +----------------+                +----------------+                +----------------+
-            |   Worker 1     |                |   Worker 2     |                |   Worker N     |
-            | Circuit Breaker|                | Circuit Breaker|                | Circuit Breaker|
-            | Rate Limiter   |                | Rate Limiter   |                | Rate Limiter   |
-            +-------+--------+                +-------+--------+                +-------+--------+
-                    |                                  |                                  |
-                    +----------------------------------+----------------------------------+
-                                                       |
-                    +----------------------------------+----------------------------------+
-                    |                                  |                                  |
-                    v                                  v                                  v
-            +----------------+                +----------------+                +----------------+
-            |   Fast2SMS     |                |     Gmail      |                |    AWS SES     |
-            | (Priority 1)   |                |  (Priority 2)  |                | (Priority 1)   |
-            |  SMS Provider  |                | Email Provider |                | Email Provider |
-            +----------------+                +----------------+                +----------------+
-                    |                                  |                                  |
-                    v                                  v                                  v
-            +-------------------------------------------------------------------------+
-            |                          PostgreSQL                                     |
-            |                       (Message Logging)                                 |
-            +------------------------------------+------------------------------------+
-                                                 |
-                                                 v
-                    +----------------+       +----------------+
-                    |  Prometheus    |------>|    Grafana     |
-                    |   (Metrics)    |       |  (Dashboard)   |
-                    +----------------+       +----------------+
 ```
-
-## License
-
-MIT
+Client --> API Server (Fastify:3000) --> Redis Queue (Bull)
+                                              |
+                                    Worker Pool (x2)
+                                    - Circuit Breaker
+                                    - Rate Limiter
+                                    - Retry + Failover
+                                              |
+                          +-------------------+-------------------+
+                          |                   |                   |
+                     Fast2SMS           BulkSMS             SES / Gmail
+                    (SMS P1)           (SMS P2)          (Email P1 / P2)
+                          |                   |                   |
+                          +-------------------+-------------------+
+                                              |
+                                         PostgreSQL
+                                       (Message Log)
+                                              |
+                          +-------------------+-------------------+
+                          |                                       |
+                     Prometheus                             DLT Service
+                      (Metrics)                         (Auto-retry, Archive)
+                          |
+                       Grafana
+```
